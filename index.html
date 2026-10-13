@@ -86,12 +86,14 @@
 
   <div class="caja">
     <h2>Lee esta frase en voz alta</h2>
-    <div class="gris mini" style="margin-bottom:10px">Como se la dirías a un
-      empleado. Normal, sin deletrear.</div>
+    <div class="gris mini" style="margin-bottom:10px"><b>Lee exactamente esta
+      frase</b>, como se la dirías a un empleado. Esta prueba mide si te
+      <b>escucha bien</b>, no si te entiende — todavía no hay nada que
+      interprete. Si dices otra cosa, saca 0% y es correcto.</div>
     <div class="frase" id="frase">—</div>
     <div class="contador" id="contador"></div>
 
-    <button class="mic" id="mic">🎤 Mantener y hablar</button>
+    <button class="mic" id="mic">🎤 Tocar para hablar</button>
 
     <div class="oido" id="oido">Lo que se entienda aparece aquí.</div>
 
@@ -113,7 +115,8 @@
       <div class="dato"><b id="m_frases">0</b><span>frases</span></div>
       <div class="dato"><b id="m_acierto">—</b><span>acierto medio</span></div>
       <div class="dato"><b id="m_tiempo">—</b><span>tarda</span></div>
-      <div class="dato"><b id="m_fallos">0</b><span>fallos</span></div>
+      <div class="dato"><b id="m_fallos">0</b><span>bajo 80%</span></div>
+      <div class="dato"><b id="m_provis">0</b><span>sin cerrar</span></div>
     </div>
     <table id="tabla">
       <tr><th>Dijiste</th><th>Entendió</th><th>%</th></tr>
@@ -228,11 +231,26 @@
     $('oido').className = 'oido';
   }
 
-  function guardar(oido, ms, error){
+  // Se guardan LAS DOS transcripciones y cuál se usó para el porcentaje.
+  //
+  // Por qué: Safari en iOS muy seguido cierra el reconocimiento sin marcar
+  // nada como "definitivo", sobre todo cuando el usuario toca para terminar.
+  // La versión anterior solo guardaba lo definitivo, así que se veía el texto
+  // correcto en pantalla y el registro decía "no entendió nada" con 0%.
+  // Era un fallo del contador, no del reconocimiento — y hacía parecer que
+  // Safari oía mal cuando oía bien.
+  function guardar(info){
     var esperado = FRASES[i];
-    var pct = error ? 0 : parecido(esperado, oido);
-    resultados.push({ frase: esperado, oido: oido||'(nada)', pct: pct,
-                      ms: ms, ruido: ruidoAhora, error: error||'' });
+    var usado = (info.usado || '').trim();
+    var pct = usado ? parecido(esperado, usado) : 0;
+    resultados.push({
+      frase: esperado,
+      usado: usado || '(nada)',
+      tipo: info.tipo || 'nada',          // definitiva · provisional · nada
+      definitiva: (info.definitiva || '').trim(),
+      provisional: (info.provisional || '').trim(),
+      pct: pct, ms: info.ms, ruido: ruidoAhora, error: info.error || ''
+    });
     pintaTabla();
     i = (i+1) % FRASES.length;
     setTimeout(pintaFrase, 900);
@@ -241,12 +259,20 @@
   function pintaTabla(){
     var t = $('tabla');
     t.innerHTML = '<tr><th>Dijiste</th><th>Entendió</th><th>%</th></tr>';
-    var suma=0, tiempo=0, fallos=0;
+    var suma=0, tiempo=0, fallos=0, provis=0;
     resultados.forEach(function(r){
-      suma += r.pct; tiempo += r.ms; if(r.pct<80) fallos++;
+      suma += r.pct; tiempo += r.ms;
+      if(r.pct<80) fallos++;
+      if(r.tipo === 'provisional') provis++;
       var cls = r.pct>=90?'bien':(r.pct>=70?'regular':'malo');
+      // La etiqueta dice de dónde salió el texto que se calificó.
+      var sello = r.tipo === 'definitiva'
+        ? '<span class="bien mini">definitiva</span>'
+        : (r.tipo === 'provisional'
+           ? '<span class="regular mini">provisional · Safari no la cerró</span>'
+           : '<span class="malo mini">nada</span>');
       var tr = document.createElement('tr');
-      tr.innerHTML = '<td>'+r.frase+'</td><td>'+r.oido+
+      tr.innerHTML = '<td>'+r.frase+'</td><td>'+r.usado+'<br>'+sello+
         (r.error?'<br><span class="malo mini">'+r.error+'</span>':'')+
         '</td><td class="'+cls+'"><b>'+r.pct+'</b></td>';
       t.appendChild(tr);
@@ -256,6 +282,7 @@
     $('m_acierto').textContent = resultados.length ? Math.round(suma/n)+'%' : '—';
     $('m_tiempo').textContent = resultados.length ? (tiempo/n/1000).toFixed(1)+'s' : '—';
     $('m_fallos').textContent = fallos;
+    $('m_provis').textContent = provis;
     informe();
   }
 
@@ -265,7 +292,9 @@
     resultados.forEach(function(r){ suma+=r.pct; tiempo+=r.ms;
       if(r.pct<80) fallos++; ruidos.push(r.ruido); });
     var n = resultados.length;
-    var txt = 'PRUEBA DE VOZ HI-AISHA — FASE 0\n';
+    var provis = resultados.filter(function(r){return r.tipo==='provisional'}).length;
+    var nada   = resultados.filter(function(r){return r.tipo==='nada'}).length;
+    var txt = 'PRUEBA DE VOZ HI-AISHA — FASE 0-bis\n';
     txt += new Date().toLocaleString('es-MX')+'\n';
     txt += navigator.userAgent+'\n';
     txt += 'API: '+(SR?('ok '+(window.SpeechRecognition?'estandar':'webkit')):'NO DISPONIBLE')+'\n\n';
@@ -273,13 +302,19 @@
     txt += 'Acierto medio: '+Math.round(suma/n)+'%\n';
     txt += 'Tiempo medio: '+(tiempo/n/1000).toFixed(1)+'s\n';
     txt += 'Por debajo de 80%: '+fallos+'\n';
+    txt += 'Cerradas por Safari (definitivas): '+(n-provis-nada)+'\n';
+    txt += 'Sin cerrar (se usó la provisional): '+provis+'\n';
+    txt += 'Sin nada de audio: '+nada+'\n';
     txt += 'Ruido min/max: '+Math.min.apply(null,ruidos)+'/'+Math.max.apply(null,ruidos)+'\n\n';
     txt += 'DETALLE\n';
     resultados.forEach(function(r,k){
-      txt += (k+1)+'. ['+r.pct+'% · '+(r.ms/1000).toFixed(1)+'s · ruido '+r.ruido+']\n';
-      txt += '   dijo:    '+r.frase+'\n';
-      txt += '   entendio:'+r.oido+'\n';
-      if(r.error) txt += '   ERROR:   '+r.error+'\n';
+      txt += (k+1)+'. ['+r.pct+'% · '+(r.ms/1000).toFixed(1)+'s · ruido '+r.ruido+
+             ' · '+r.tipo+']\n';
+      txt += '   dijo:        '+r.frase+'\n';
+      txt += '   calificado:  '+r.usado+'\n';
+      if(r.definitiva)  txt += '   definitiva:  '+r.definitiva+'\n';
+      if(r.provisional) txt += '   provisional: '+r.provisional+'\n';
+      if(r.error) txt += '   ERROR:       '+r.error+'\n';
     });
     $('informe').value = txt;
   }
@@ -292,34 +327,50 @@
     rec.continuous = false;
     rec.interimResults = true;
     rec.maxAlternatives = 1;
-    var final = '', hubo = false;
+    var definitiva = '', provisional = '', fallo = '', yaGuardado = false;
+
+    // Un solo lugar por donde se guarda. Antes, si Safari lanzaba un error Y
+    // además llegaba texto definitivo, se guardaban DOS renglones para la
+    // misma frase y los promedios salían mal.
+    function cerrar(){
+      if(yaGuardado) return;
+      yaGuardado = true;
+      var d = definitiva.trim(), p = provisional.trim();
+      guardar({
+        usado: d || p,
+        tipo: d ? 'definitiva' : (p ? 'provisional' : 'nada'),
+        definitiva: d, provisional: p,
+        ms: Date.now() - t0,
+        error: fallo || (!d && !p ? 'no se oyó nada' : '')
+      });
+    }
 
     rec.onstart = function(){
       oyendo = true; t0 = Date.now();
       $('mic').classList.add('oyendo');
-      $('mic').textContent = '● Escuchando… toca para terminar';
+      $('mic').textContent = '● Tocar para terminar';
       $('oido').textContent = '…'; $('oido').className = 'oido parcial';
     };
     rec.onresult = function(e){
-      var parcial = '';
+      var enCurso = '';
       for(var k=e.resultIndex;k<e.results.length;k++){
         var txt = e.results[k][0].transcript;
-        if(e.results[k].isFinal){ final += txt; hubo = true; }
-        else parcial += txt;
+        if(e.results[k].isFinal) definitiva += txt;
+        else enCurso += txt;
       }
-      $('oido').textContent = final || parcial;
-      $('oido').className = 'oido' + (final ? '' : ' parcial');
+      // Lo provisional se CONSERVA, no solo se muestra: es lo único que queda
+      // cuando Safari cierra sin dar nada por definitivo.
+      if(enCurso) provisional = enCurso;
+      var visible = definitiva || provisional;
+      $('oido').textContent = visible;
+      $('oido').className = 'oido' + (definitiva ? '' : ' parcial');
     };
-    rec.onerror = function(e){
-      guardar(final, Date.now()-t0, 'error: '+e.error);
-      hubo = true;
-    };
+    rec.onerror = function(e){ fallo = 'error: ' + e.error; };
     rec.onend = function(){
       oyendo = false;
       $('mic').classList.remove('oyendo');
-      $('mic').textContent = '🎤 Mantener y hablar';
-      if(final.trim()) guardar(final.trim(), Date.now()-t0, '');
-      else if(!hubo) guardar('', Date.now()-t0, 'no entendió nada');
+      $('mic').textContent = '🎤 Tocar para hablar';
+      cerrar();
     };
     try { rec.start(); } catch(err){ alert('No arrancó: '+err.message); }
   }
