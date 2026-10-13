@@ -1,0 +1,352 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="theme-color" content="#3B5BFE">
+<title>HI-AISHA · Prueba de voz</title>
+</head>
+<body>
+<style>
+  *{box-sizing:border-box}
+  body{margin:0;font-family:-apple-system,'Segoe UI',Roboto,sans-serif;
+       background:#f4f6f9;color:#1c1f23;padding:0 0 40px}
+  .hd{background:#3B5BFE;color:#fff;padding:18px 18px 20px}
+  .hd h1{margin:0;font-size:1.05rem;font-weight:700}
+  .hd p{margin:4px 0 0;font-size:.8rem;color:#dbe3ff}
+  .wrap{max-width:560px;margin:0 auto;padding:0 14px}
+  .caja{background:#fff;border-radius:16px;padding:18px;margin-top:14px;
+        box-shadow:0 1px 3px rgba(28,31,35,.06)}
+  h2{margin:0 0 4px;font-size:.98rem}
+  .gris{color:#8A94A6}
+  .mini{font-size:.76rem}
+
+  #soporte{font-size:.85rem;line-height:1.7}
+  .ok{color:#1A7F4E;font-weight:600}
+  .mal{color:#A32D2D;font-weight:600}
+
+  .frase{background:#F2F5FF;border:1.5px solid #cfdaff;border-radius:12px;
+         padding:16px;font-size:1.15rem;font-weight:600;line-height:1.4;
+         text-align:center}
+  .contador{font-size:.74rem;color:#8A94A6;text-align:center;margin-top:6px}
+
+  .mic{width:100%;padding:20px;border:none;border-radius:14px;background:#3B5BFE;
+       color:#fff;font-size:1.05rem;font-weight:700;font-family:inherit;
+       cursor:pointer;margin-top:14px;transition:all .15s}
+  .mic:disabled{background:#c9d2e4}
+  .mic.oyendo{background:#A32D2D;animation:late 1.1s infinite}
+  @keyframes late{0%,100%{opacity:1}50%{opacity:.72}}
+
+  .oido{min-height:62px;border:1.5px dashed #dde3ea;border-radius:12px;
+        padding:14px;margin-top:12px;font-size:1rem;line-height:1.45}
+  .oido.parcial{color:#8A94A6;font-style:italic}
+
+  .ruido{display:flex;align-items:center;gap:10px;margin-top:12px}
+  .barra{flex:1;height:8px;background:#e8ecf2;border-radius:99px;overflow:hidden}
+  .barra i{display:block;height:100%;width:0;background:#1A7F4E;transition:width .1s}
+  .barra i.medio{background:#B3611B} .barra i.alto{background:#A32D2D}
+
+  .fila{display:flex;gap:8px;margin-top:10px;flex-wrap:wrap}
+  .btn{flex:1;min-width:110px;padding:12px;border:1.5px solid #dde3ea;background:#fff;
+       border-radius:11px;font-size:.86rem;font-family:inherit;cursor:pointer;
+       font-weight:600;color:#1c1f23}
+  .btn.verde{border-color:#bfe4ce;color:#1A7F4E}
+  .btn.rojo{border-color:#e6c9c9;color:#A32D2D}
+
+  table{width:100%;border-collapse:collapse;font-size:.78rem;margin-top:10px}
+  td,th{text-align:left;padding:6px 4px;border-bottom:1px solid #f0f2f5;
+        vertical-align:top}
+  th{color:#8A94A6;font-weight:600;font-size:.72rem;text-transform:uppercase}
+  .bien{color:#1A7F4E} .regular{color:#B3611B} .malo{color:#A32D2D}
+
+  .marcador{display:flex;gap:16px;flex-wrap:wrap;margin-top:8px}
+  .dato{flex:1;min-width:90px}
+  .dato b{display:block;font-size:1.5rem;line-height:1.2}
+  .dato span{font-size:.72rem;color:#8A94A6}
+
+  textarea{width:100%;height:150px;font-family:ui-monospace,Menlo,monospace;
+           font-size:.7rem;border:1.5px solid #dde3ea;border-radius:11px;padding:10px;
+           margin-top:10px}
+  .aviso{background:#FFF7E6;border:1.5px solid #e6d3a8;border-radius:12px;
+         padding:12px;font-size:.8rem;margin-top:12px;line-height:1.5}
+</style>
+
+<div class="hd">
+  <h1>HI-AISHA · Prueba de voz · Fase 0</h1>
+  <p>Solo reconocimiento. No se conecta a ningún servidor ni toca ninguna cita.</p>
+</div>
+
+<div class="wrap">
+
+  <div class="caja">
+    <h2>Tu dispositivo</h2>
+    <div id="soporte" class="gris">Revisando…</div>
+  </div>
+
+  <div class="caja">
+    <h2>Lee esta frase en voz alta</h2>
+    <div class="gris mini" style="margin-bottom:10px">Como se la dirías a un
+      empleado. Normal, sin deletrear.</div>
+    <div class="frase" id="frase">—</div>
+    <div class="contador" id="contador"></div>
+
+    <button class="mic" id="mic">🎤 Mantener y hablar</button>
+
+    <div class="oido" id="oido">Lo que se entienda aparece aquí.</div>
+
+    <div class="ruido">
+      <span class="mini gris">Ruido</span>
+      <span class="barra"><i id="nivel"></i></span>
+      <span class="mini gris" id="db">—</span>
+    </div>
+
+    <div class="fila">
+      <button class="btn" id="saltar">Saltar frase</button>
+      <button class="btn" id="repetir">Repetir</button>
+    </div>
+  </div>
+
+  <div class="caja">
+    <h2>Resultados</h2>
+    <div class="marcador">
+      <div class="dato"><b id="m_frases">0</b><span>frases</span></div>
+      <div class="dato"><b id="m_acierto">—</b><span>acierto medio</span></div>
+      <div class="dato"><b id="m_tiempo">—</b><span>tarda</span></div>
+      <div class="dato"><b id="m_fallos">0</b><span>fallos</span></div>
+    </div>
+    <table id="tabla">
+      <tr><th>Dijiste</th><th>Entendió</th><th>%</th></tr>
+    </table>
+  </div>
+
+  <div class="caja">
+    <h2>Para mandarle a Arturo</h2>
+    <div class="gris mini">Copia esto y pégalo en el chat.</div>
+    <textarea id="informe" readonly></textarea>
+    <div class="fila">
+      <button class="btn verde" id="copiar">Copiar informe</button>
+      <button class="btn rojo" id="borrar">Borrar todo</button>
+    </div>
+  </div>
+
+  <div class="aviso">
+    <b>Cómo hacer la prueba bien</b><br>
+    1 · Primero en silencio, las diez frases.<br>
+    2 · Luego otra vuelta <b>dentro de la barbería</b>, con secadora, música y
+    gente hablando. Es la que de verdad cuenta.<br>
+    3 · Si una frase falla, tócala de nuevo en <b>Repetir</b> antes de pasar.<br>
+    <br>
+    El nivel de ruido se guarda con cada frase, así sabemos a partir de qué
+    punto deja de entender.
+  </div>
+
+</div>
+
+<script>
+(function(){
+  var FRASES = [
+    "¿Cómo va mi jueves?",
+    "¿Cuántas citas tengo hoy?",
+    "Tápame mañana de dos a cuatro",
+    "Bloquéame la tarde del martes",
+    "No voy a estar el jueves",
+    "¿Tengo libre el sábado a las tres?",
+    "Agéndame a Pedro un corte el viernes a las once",
+    "¿A qué hora tengo a Gabriel?",
+    "Cancélame la cita de Ana María",
+    "Ábreme las horas del jueves con Nelson"
+  ];
+
+  var SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+  var rec = null, oyendo = false, i = 0, t0 = 0, resultados = [], ruidoAhora = 0;
+  var $ = function(id){ return document.getElementById(id); };
+
+  // ---------- qué soporta este teléfono ----------
+  function sop(){
+    var ua = navigator.userAgent;
+    var esIOS = /iPad|iPhone|iPod/.test(ua);
+    var esSafari = /Safari/.test(ua) && !/CriOS|FxiOS|EdgiOS/.test(ua);
+    var seguro = window.isSecureContext;
+    var fila = function(ok, txt){
+      return '<div><span class="'+(ok?'ok':'mal')+'">'+(ok?'✓':'✗')+'</span> '+txt+'</div>';
+    };
+    $('soporte').innerHTML =
+      fila(!!SR, SR ? 'Reconocimiento de voz disponible'
+                    : 'ESTE NAVEGADOR NO RECONOCE VOZ — prueba en Safari') +
+      fila(seguro, seguro ? 'Conexión segura (hace falta para el micrófono)'
+                          : 'Sin HTTPS: el micrófono no va a funcionar') +
+      fila(esIOS, esIOS ? 'iPhone o iPad' : 'No es iOS — el resultado no cuenta para la prueba') +
+      fila(esSafari, esSafari ? 'Safari' : 'No es Safari') +
+      '<div class="gris mini" style="margin-top:6px">'+ua.slice(0,110)+'</div>';
+    if(!SR){ $('mic').disabled = true; $('mic').textContent = 'No disponible'; }
+  }
+
+  // ---------- medidor de ruido ----------
+  function escucharRuido(){
+    if(!navigator.mediaDevices) return;
+    navigator.mediaDevices.getUserMedia({audio:true}).then(function(s){
+      var ctx = new (window.AudioContext||window.webkitAudioContext)();
+      var src = ctx.createMediaStreamSource(s);
+      var an = ctx.createAnalyser(); an.fftSize = 512;
+      src.connect(an);
+      var buf = new Uint8Array(an.frequencyBinCount);
+      (function tic(){
+        an.getByteFrequencyData(buf);
+        var suma = 0; for(var k=0;k<buf.length;k++) suma += buf[k];
+        var med = suma/buf.length;
+        ruidoAhora = Math.round(med);
+        var pct = Math.min(100, med*1.6);
+        var b = $('nivel'); b.style.width = pct+'%';
+        b.className = pct>62 ? 'alto' : (pct>32 ? 'medio' : '');
+        $('db').textContent = ruidoAhora;
+        requestAnimationFrame(tic);
+      })();
+    }).catch(function(){ $('db').textContent = 'sin permiso'; });
+  }
+
+  // ---------- comparar lo dicho con lo oído ----------
+  function limpiar(t){
+    return (t||'').toLowerCase()
+      .normalize('NFD').replace(/[̀-ͯ]/g,'')
+      .replace(/[¿?¡!.,;:]/g,'').replace(/\s+/g,' ').trim();
+  }
+  function parecido(a, b){
+    var A = limpiar(a).split(' '), B = limpiar(b).split(' ');
+    var copia = B.slice(), aciertos = 0;
+    for(var k=0;k<A.length;k++){
+      var p = copia.indexOf(A[k]);
+      if(p>=0){ aciertos++; copia.splice(p,1); }
+    }
+    return Math.round(aciertos/Math.max(1,A.length)*100);
+  }
+
+  function pintaFrase(){
+    $('frase').textContent = FRASES[i];
+    $('contador').textContent = 'Frase '+(i+1)+' de '+FRASES.length;
+    $('oido').textContent = 'Lo que se entienda aparece aquí.';
+    $('oido').className = 'oido';
+  }
+
+  function guardar(oido, ms, error){
+    var esperado = FRASES[i];
+    var pct = error ? 0 : parecido(esperado, oido);
+    resultados.push({ frase: esperado, oido: oido||'(nada)', pct: pct,
+                      ms: ms, ruido: ruidoAhora, error: error||'' });
+    pintaTabla();
+    i = (i+1) % FRASES.length;
+    setTimeout(pintaFrase, 900);
+  }
+
+  function pintaTabla(){
+    var t = $('tabla');
+    t.innerHTML = '<tr><th>Dijiste</th><th>Entendió</th><th>%</th></tr>';
+    var suma=0, tiempo=0, fallos=0;
+    resultados.forEach(function(r){
+      suma += r.pct; tiempo += r.ms; if(r.pct<80) fallos++;
+      var cls = r.pct>=90?'bien':(r.pct>=70?'regular':'malo');
+      var tr = document.createElement('tr');
+      tr.innerHTML = '<td>'+r.frase+'</td><td>'+r.oido+
+        (r.error?'<br><span class="malo mini">'+r.error+'</span>':'')+
+        '</td><td class="'+cls+'"><b>'+r.pct+'</b></td>';
+      t.appendChild(tr);
+    });
+    var n = resultados.length || 1;
+    $('m_frases').textContent = resultados.length;
+    $('m_acierto').textContent = resultados.length ? Math.round(suma/n)+'%' : '—';
+    $('m_tiempo').textContent = resultados.length ? (tiempo/n/1000).toFixed(1)+'s' : '—';
+    $('m_fallos').textContent = fallos;
+    informe();
+  }
+
+  function informe(){
+    if(!resultados.length){ $('informe').value = ''; return; }
+    var suma=0, tiempo=0, fallos=0, ruidos=[];
+    resultados.forEach(function(r){ suma+=r.pct; tiempo+=r.ms;
+      if(r.pct<80) fallos++; ruidos.push(r.ruido); });
+    var n = resultados.length;
+    var txt = 'PRUEBA DE VOZ HI-AISHA — FASE 0\n';
+    txt += new Date().toLocaleString('es-MX')+'\n';
+    txt += navigator.userAgent+'\n';
+    txt += 'API: '+(SR?('ok '+(window.SpeechRecognition?'estandar':'webkit')):'NO DISPONIBLE')+'\n\n';
+    txt += 'Frases: '+n+'\n';
+    txt += 'Acierto medio: '+Math.round(suma/n)+'%\n';
+    txt += 'Tiempo medio: '+(tiempo/n/1000).toFixed(1)+'s\n';
+    txt += 'Por debajo de 80%: '+fallos+'\n';
+    txt += 'Ruido min/max: '+Math.min.apply(null,ruidos)+'/'+Math.max.apply(null,ruidos)+'\n\n';
+    txt += 'DETALLE\n';
+    resultados.forEach(function(r,k){
+      txt += (k+1)+'. ['+r.pct+'% · '+(r.ms/1000).toFixed(1)+'s · ruido '+r.ruido+']\n';
+      txt += '   dijo:    '+r.frase+'\n';
+      txt += '   entendio:'+r.oido+'\n';
+      if(r.error) txt += '   ERROR:   '+r.error+'\n';
+    });
+    $('informe').value = txt;
+  }
+
+  // ---------- el micrófono ----------
+  function arranca(){
+    if(oyendo || !SR) return;
+    rec = new SR();
+    rec.lang = 'es-MX';
+    rec.continuous = false;
+    rec.interimResults = true;
+    rec.maxAlternatives = 1;
+    var final = '', hubo = false;
+
+    rec.onstart = function(){
+      oyendo = true; t0 = Date.now();
+      $('mic').classList.add('oyendo');
+      $('mic').textContent = '● Escuchando… toca para terminar';
+      $('oido').textContent = '…'; $('oido').className = 'oido parcial';
+    };
+    rec.onresult = function(e){
+      var parcial = '';
+      for(var k=e.resultIndex;k<e.results.length;k++){
+        var txt = e.results[k][0].transcript;
+        if(e.results[k].isFinal){ final += txt; hubo = true; }
+        else parcial += txt;
+      }
+      $('oido').textContent = final || parcial;
+      $('oido').className = 'oido' + (final ? '' : ' parcial');
+    };
+    rec.onerror = function(e){
+      guardar(final, Date.now()-t0, 'error: '+e.error);
+      hubo = true;
+    };
+    rec.onend = function(){
+      oyendo = false;
+      $('mic').classList.remove('oyendo');
+      $('mic').textContent = '🎤 Mantener y hablar';
+      if(final.trim()) guardar(final.trim(), Date.now()-t0, '');
+      else if(!hubo) guardar('', Date.now()-t0, 'no entendió nada');
+    };
+    try { rec.start(); } catch(err){ alert('No arrancó: '+err.message); }
+  }
+
+  $('mic').addEventListener('click', function(){
+    if(oyendo){ try{ rec.stop(); }catch(e){} } else arranca();
+  });
+  $('saltar').addEventListener('click', function(){
+    i = (i+1) % FRASES.length; pintaFrase();
+  });
+  $('repetir').addEventListener('click', pintaFrase);
+  $('copiar').addEventListener('click', function(){
+    var t = $('informe'); t.select();
+    if(navigator.clipboard) navigator.clipboard.writeText(t.value);
+    else document.execCommand('copy');
+    this.textContent = 'Copiado ✓';
+    var b = this; setTimeout(function(){ b.textContent='Copiar informe'; }, 1500);
+  });
+  $('borrar').addEventListener('click', function(){
+    if(confirm('¿Borrar todos los resultados?')){
+      resultados = []; i = 0; pintaTabla(); pintaFrase();
+    }
+  });
+
+  sop(); pintaFrase(); escucharRuido();
+})();
+</script>
+
+</body>
+</html>
